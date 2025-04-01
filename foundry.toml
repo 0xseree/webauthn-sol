@@ -4,7 +4,7 @@ out = "out"
 libs = ["lib"]
 optimizer_runs = 999999
 fs_permissions = [{ access = "read", path = "test/fixtures" }]
-
+no-commit = true
 [fmt]
 sort_imports = true
 wrap_comments = true
