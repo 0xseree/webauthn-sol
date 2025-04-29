@@ -53,7 +53,8 @@ library WebAuthn {
 
     /// @dev The expected type (hash) in the client data JSON when verifying assertion signatures.
     ///      See https://www.w3.org/TR/webauthn-2/#dom-collectedclientdata-type
-    bytes32 private constant _EXPECTED_TYPE_HASH = keccak256('"type":"webauthn.get"');
+    bytes32 private constant _EXPECTED_TYPE_HASH =
+        keccak256('"type":"webauthn.get"');
 
     ///
     /// @notice Verifies a Webauthn Authentication Assertion as described
@@ -102,27 +103,38 @@ library WebAuthn {
     /// @param y            The y coordinate of the public key.
     ///
     /// @return `true` if the authentication assertion passed validation, else `false`.
-    function verify(bytes memory challenge, bool requireUV, WebAuthnAuth memory webAuthnAuth, uint256 x, uint256 y)
-        internal
-        view
-        returns (bool)
-    {
-        if (webAuthnAuth.s > _P256_N_DIV_2) {
-            // guard against signature malleability
-            return false;
+    function verify(
+        bytes memory challenge,
+        bool requireUV,
+        WebAuthnAuth memory webAuthnAuth,
+        uint256 x,
+        uint256 y
+    ) internal view returns (bool) {
+        uint256 s = webAuthnAuth.s;
+
+        if (s > _P256_N_DIV_2) {
+            s = FCL_Elliptic_ZZ.n - s;
+            console.log("new s", s);
         }
 
         // 11. Verify that the value of C.type is the string webauthn.get.
         //     bytes("type":"webauthn.get").length = 21
-        string memory _type = webAuthnAuth.clientDataJSON.slice(webAuthnAuth.typeIndex, webAuthnAuth.typeIndex + 21);
+        string memory _type = webAuthnAuth.clientDataJSON.slice(
+            webAuthnAuth.typeIndex,
+            webAuthnAuth.typeIndex + 21
+        );
         if (keccak256(bytes(_type)) != _EXPECTED_TYPE_HASH) {
             return false;
         }
 
         // 12. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
-        bytes memory expectedChallenge = bytes(string.concat('"challenge":"', Base64.encodeURL(challenge), '"'));
-        string memory actualChallenge =
-            webAuthnAuth.clientDataJSON.slice(webAuthnAuth.challengeIndex, webAuthnAuth.challengeIndex + expectedChallenge.length);
+        bytes memory expectedChallenge = bytes(
+            string.concat('"challenge":"', Base64.encodeURL(challenge), '"')
+        );
+        string memory actualChallenge = webAuthnAuth.clientDataJSON.slice(
+            webAuthnAuth.challengeIndex,
+            webAuthnAuth.challengeIndex + expectedChallenge.length
+        );
         if (keccak256(bytes(actualChallenge)) != keccak256(expectedChallenge)) {
             return false;
         }
@@ -130,13 +142,20 @@ library WebAuthn {
         // Skip 13., 14., 15.
 
         // 16. Verify that the UP bit of the flags in authData is set.
-        if (webAuthnAuth.authenticatorData[32] & _AUTH_DATA_FLAGS_UP != _AUTH_DATA_FLAGS_UP) {
+        if (
+            webAuthnAuth.authenticatorData[32] & _AUTH_DATA_FLAGS_UP !=
+            _AUTH_DATA_FLAGS_UP
+        ) {
             return false;
         }
 
         // 17. If user verification is required for this assertion, verify that the User Verified bit of the flags in
         //     authData is set.
-        if (requireUV && (webAuthnAuth.authenticatorData[32] & _AUTH_DATA_FLAGS_UV) != _AUTH_DATA_FLAGS_UV) {
+        if (
+            requireUV &&
+            (webAuthnAuth.authenticatorData[32] & _AUTH_DATA_FLAGS_UV) !=
+            _AUTH_DATA_FLAGS_UV
+        ) {
             return false;
         }
 
@@ -147,8 +166,16 @@ library WebAuthn {
 
         // 20. Using credentialPublicKey, verify that sig is a valid signature over the binary concatenation of authData
         //     and hash.
-        bytes32 messageHash = sha256(abi.encodePacked(webAuthnAuth.authenticatorData, clientDataJSONHash));
-        bytes memory args = abi.encode(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
+        bytes32 messageHash = sha256(
+            abi.encodePacked(webAuthnAuth.authenticatorData, clientDataJSONHash)
+        );
+        bytes memory args = abi.encode(
+            messageHash,
+            webAuthnAuth.r,
+            webAuthnAuth.s,
+            x,
+            y
+        );
         // try the RIP-7212 precompile address
         (bool success, bytes memory ret) = _VERIFIER.staticcall(args);
         // staticcall will not revert if address has no code
@@ -159,6 +186,13 @@ library WebAuthn {
         bool valid = ret.length > 0;
         if (success && valid) return abi.decode(ret, (uint256)) == 1;
 
-        return FCL_ecdsa.ecdsa_verify(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
+        return
+            FCL_ecdsa.ecdsa_verify(
+                messageHash,
+                webAuthnAuth.r,
+                webAuthnAuth.s,
+                x,
+                y
+            );
     }
 }
