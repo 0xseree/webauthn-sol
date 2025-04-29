@@ -114,7 +114,6 @@ library WebAuthn {
 
         if (s > _P256_N_DIV_2) {
             s = FCL_Elliptic_ZZ.n - s;
-            console.log("new s", s);
         }
 
         // 11. Verify that the value of C.type is the string webauthn.get.
